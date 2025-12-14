@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2FAuth</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="screen">
+      <div class="loading-container">
+        <div class="spinner"></div>
+        <p data-i18n="loading">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Setup Screen (Set Backend URL) -->
+    <div id="setup-screen" class="screen hidden">
+      <div class="setup-container">
+        <div class="logo-section">
+          <img src="images/icon128.png" alt="2FAuth" class="logo">
+          <h1>2FAuth</h1>
+          <p class="subtitle" data-i18n="selfHosted2FA">Self-hosted 2FA solution</p>
+        </div>
+        <form id="setup-form">
+          <div class="form-group">
+            <label for="server-url" data-i18n="proxyServerUrl">Proxy Server URL</label>
+            <input type="url" id="server-url" placeholder="http://localhost:3000" required>
+            <small class="help-text" data-i18n="proxyServerHelp">Enter your 2FAuth Proxy server address</small>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="setup-submit-btn">
+            <i class="fas fa-check"></i> <span data-i18n="saveContinue">Save & Continue</span>
+          </button>
+          <div id="setup-error" class="error-message hidden"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen hidden">
+      <div class="login-container">
+        <div class="header-bar">
+          <button id="back-to-setup" class="btn-icon" data-i18n-title="changeServer" title="Change Server">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <h2 data-i18n="login">Login</h2>
+          <div class="spacer"></div>
+        </div>
+        <div class="server-info">
+          <i class="fas fa-server"></i>
+          <span id="current-server"></span>
+        </div>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="pat-token" data-i18n="proxyToken">Proxy Token</label>
+            <div class="password-input">
+              <input type="password" id="pat-token" data-i18n-placeholder="tokenPlaceholder" placeholder="Paste your proxy token here" required>
+              <button type="button" class="btn-icon toggle-password">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+            <small class="help-text">
+              <span data-i18n="tokenHelp">Generate token via command:</span><br>
+              docker exec 2fauth-proxy npm run generate-token
+            </small>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fas fa-sign-in-alt"></i> <span data-i18n="login">Login</span>
+          </button>
+        </form>
+        <div id="login-error" class="error-message hidden"></div>
+      </div>
+    </div>
+
+    <!-- Main Screen (Account List) -->
+    <div id="main-screen" class="screen hidden">
+      <!-- Top Menu Bar -->
+      <div class="menu-bar">
+        <div class="menu-left">
+          <div class="user-info" id="user-dropdown-trigger">
+            <i class="fas fa-user-circle"></i>
+            <span id="current-user"></span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div id="user-dropdown" class="dropdown hidden">
+            <div class="dropdown-item" id="logout-btn">
+              <i class="fas fa-sign-out-alt"></i> <span data-i18n="logout">Logout</span>
+            </div>
+          </div>
+        </div>
+        <div class="menu-right">
+          <button id="add-account-btn" class="btn-icon" data-i18n-title="addAccount" title="Add Account">
+            <i class="fas fa-plus"></i>
+          </button>
+          <button id="settings-btn" class="btn-icon" data-i18n-title="settings" title="Settings">
+            <i class="fas fa-cog"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="search-container">
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input type="text" id="search-input" data-i18n-placeholder="searchAccounts" placeholder="Search accounts...">
+          <button id="clear-search" class="btn-icon hidden">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Account List -->
+      <div id="account-list" class="account-list">
+        <!-- Accounts will be rendered here -->
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="empty-state hidden">
+        <i class="fas fa-key"></i>
+        <p data-i18n="noAccounts">No 2FA accounts yet</p>
+        <button id="add-first-account" class="btn btn-primary">
+          <i class="fas fa-plus"></i> <span data-i18n="addFirstAccount">Add your first account</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- OTP Display Screen -->
+    <div id="otp-screen" class="screen hidden">
+      <div class="otp-container">
+        <div class="header-bar">
+          <button id="back-to-list" class="btn-icon">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <h2 id="otp-title">OTP</h2>
+          <div class="spacer"></div>
+        </div>
+        <div class="otp-display">
+          <div class="account-icon" id="otp-icon">
+            <i class="fas fa-key"></i>
+          </div>
+          <div class="otp-info">
+            <div class="otp-service" id="otp-service"></div>
+            <div class="otp-account" id="otp-account"></div>
+          </div>
+          <div class="otp-code-container">
+            <div class="otp-code" id="otp-code">------</div>
+            <button id="copy-otp" class="btn-icon" data-i18n-title="copy" title="Copy">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+          <div class="otp-timer">
+            <div class="timer-bar">
+              <div class="timer-progress" id="timer-progress"></div>
+            </div>
+            <span id="timer-text">30s</span>
+          </div>
+          <div class="otp-dots" id="otp-dots"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Account Screen -->
+    <div id="add-screen" class="screen hidden">
+      <div class="add-container">
+        <div class="header-bar">
+          <button id="back-from-add" class="btn-icon">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <h2 data-i18n="addAccount">Add Account</h2>
+          <div class="spacer"></div>
+        </div>
+        <div class="add-options">
+          <button class="add-option" id="scan-screen-qr">
+            <div class="option-icon">
+              <i class="fas fa-desktop"></i>
+            </div>
+            <div class="option-text">
+              <span class="option-title" data-i18n="scanScreenQr">Scan Screen QR Code</span>
+              <span class="option-desc" data-i18n="scanScreenQrDesc">Scan QR code visible on screen</span>
+            </div>
+          </button>
+          <button class="add-option" id="upload-qr">
+            <div class="option-icon">
+              <i class="fas fa-image"></i>
+            </div>
+            <div class="option-text">
+              <span class="option-title" data-i18n="uploadQrImage">Upload QR Code Image</span>
+              <span class="option-desc" data-i18n="uploadQrDesc">Upload a QR code image file</span>
+            </div>
+          </button>
+          <button class="add-option" id="manual-entry">
+            <div class="option-icon">
+              <i class="fas fa-keyboard"></i>
+            </div>
+            <div class="option-text">
+              <span class="option-title" data-i18n="manualEntry">Manual Entry</span>
+              <span class="option-desc" data-i18n="manualEntryDesc">Enter account details manually</span>
+            </div>
+          </button>
+          <button class="add-option" id="import-accounts">
+            <div class="option-icon">
+              <i class="fas fa-file-import"></i>
+            </div>
+            <div class="option-text">
+              <span class="option-title" data-i18n="import">Import</span>
+              <span class="option-desc" data-i18n="importDesc">Import from other apps</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual Entry Screen -->
+    <div id="manual-screen" class="screen hidden">
+      <div class="manual-container">
+        <div class="header-bar">
+          <button id="back-from-manual" class="btn-icon">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <h2 data-i18n="manualEntry">Manual Entry</h2>
+          <div class="spacer"></div>
+        </div>
+        <form id="manual-form">
+          <div class="form-group">
+            <label for="manual-service"><span data-i18n="service">Service</span> *</label>
+            <input type="text" id="manual-service" data-i18n-placeholder="servicePlaceholder" placeholder="e.g., Google, GitHub" required>
+          </div>
+          <div class="form-group">
+            <label for="manual-account"><span data-i18n="account">Account</span> *</label>
+            <input type="text" id="manual-account" data-i18n-placeholder="accountPlaceholder" placeholder="e.g., user@example.com" required>
+          </div>
+          <div class="form-group">
+            <label for="manual-secret"><span data-i18n="secretKey">Secret Key</span> *</label>
+            <input type="text" id="manual-secret" data-i18n-placeholder="secretPlaceholder" placeholder="Base32 encoded secret" required>
+          </div>
+          <div class="form-group">
+            <label for="manual-icon" data-i18n="icon">Icon</label>
+            <div class="icon-input-group">
+              <div class="icon-preview" id="manual-icon-preview">
+                <i class="fas fa-key"></i>
+              </div>
+              <div class="icon-buttons">
+                <button type="button" class="btn btn-secondary btn-sm" id="fetch-icon-btn">
+                  <i class="fas fa-search"></i> <span data-i18n="fetchIcon">Fetch Icon</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="upload-icon-btn">
+                  <i class="fas fa-upload"></i> <span data-i18n="uploadIcon">Upload</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="clear-icon-btn">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <input type="file" id="icon-file-input" accept="image/*" class="hidden-input">
+            </div>
+            <small class="help-text" data-i18n="iconHelp">Fetch icon by service name or upload custom icon</small>
+          </div>
+          <div class="form-group">
+            <label for="manual-otp-type" data-i18n="otpType">OTP Type</label>
+            <select id="manual-otp-type">
+              <option value="totp" data-i18n="totpOption">TOTP (Time-based)</option>
+              <option value="hotp" data-i18n="hotpOption">HOTP (Counter-based)</option>
+              <option value="steamtotp" data-i18n="steamOption">Steam TOTP</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group half">
+              <label for="manual-digits" data-i18n="digits">Digits</label>
+              <select id="manual-digits">
+                <option value="6" selected>6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+              </select>
+            </div>
+            <div class="form-group half">
+              <label for="manual-algorithm" data-i18n="algorithm">Algorithm</label>
+              <select id="manual-algorithm">
+                <option value="sha1" selected>SHA1</option>
+                <option value="sha256">SHA256</option>
+                <option value="sha512">SHA512</option>
+                <option value="md5">MD5</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group totp-options">
+            <label for="manual-period" data-i18n="period">Period (seconds)</label>
+            <input type="number" id="manual-period" value="30" min="1" max="300">
+          </div>
+          <div class="form-group hotp-options hidden">
+            <label for="manual-counter" data-i18n="counter">Counter</label>
+            <input type="number" id="manual-counter" value="0" min="0">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fas fa-plus"></i> <span data-i18n="addAccountBtn">Add Account</span>
+          </button>
+        </form>
+        <div id="manual-error" class="error-message hidden"></div>
+      </div>
+    </div>
+
+    <!-- Import Screen -->
+    <div id="import-screen" class="screen hidden">
+      <div class="import-container">
+        <div class="header-bar">
+          <button id="back-from-import" class="btn-icon">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <h2 data-i18n="importAccounts">Import Accounts</h2>
+          <div class="spacer"></div>
+        </div>
+        <div class="import-options">
+          <div class="form-group">
+            <label for="import-source" data-i18n="importFrom">Import from</label>
+            <select id="import-source">
+              <option value="google" data-i18n="googleAuth">Google Authenticator (QR Code)</option>
+              <option value="aegis" data-i18n="aegis">Aegis Authenticator</option>
+              <option value="2fas" data-i18n="twofas">2FAS Authenticator</option>
+              <option value="2fauth" data-i18n="twofauth">2FAuth</option>
+              <option value="freeotp" data-i18n="freeotp">FreeOTP+</option>
+            </select>
+          </div>
+          <div class="import-method">
+            <button class="add-option" id="import-scan-qr">
+              <div class="option-icon">
+                <i class="fas fa-desktop"></i>
+              </div>
+              <div class="option-text">
+                <span class="option-title" data-i18n="scanScreenQr">Scan Screen QR Code</span>
+                <span class="option-desc" data-i18n="scanScreenQrDesc">Scan migration QR on screen</span>
+              </div>
+            </button>
+            <button class="add-option" id="import-upload-qr">
+              <div class="option-icon">
+                <i class="fas fa-image"></i>
+              </div>
+              <div class="option-text">
+                <span class="option-title" data-i18n="uploadQrImage">Upload QR Code Image</span>
+                <span class="option-desc" data-i18n="uploadQrDesc">Upload migration QR image</span>
+              </div>
+            </button>
+            <button class="add-option" id="import-upload-file">
+              <div class="option-icon">
+                <i class="fas fa-file-upload"></i>
+              </div>
+              <div class="option-text">
+                <span class="option-title" data-i18n="uploadFile">Upload File</span>
+                <span class="option-desc" data-i18n="uploadFileDesc">Upload JSON/TXT export file</span>
+              </div>
+            </button>
+          </div>
+          <div class="form-group">
+            <label for="import-text" data-i18n="orPasteText">Or paste export data</label>
+            <textarea id="import-text" rows="5" data-i18n-placeholder="pasteTextPlaceholder" placeholder="Paste your export data here..."></textarea>
+          </div>
+          <button id="import-submit" class="btn btn-primary btn-block">
+            <i class="fas fa-file-import"></i> <span data-i18n="importBtn">Import</span>
+          </button>
+        </div>
+        <div id="import-error" class="error-message hidden"></div>
+      </div>
+    </div>
+
+    <!-- QR Preview Screen -->
+    <div id="qr-preview-screen" class="screen hidden">
+      <div class="qr-preview-container">
+        <div class="header-bar">
+          <button id="back-from-qr-preview" class="btn-icon">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <h2 data-i18n="previewAccount">Confirm Account</h2>
+          <div class="spacer"></div>
+        </div>
+        <div class="preview-content">
+          <div class="preview-icon" id="preview-icon">
+            <i class="fas fa-key"></i>
+          </div>
+          <div class="preview-info">
+            <div class="preview-service" id="preview-service"></div>
+            <div class="preview-account" id="preview-account"></div>
+          </div>
+          <div class="preview-otp">
+            <div class="preview-otp-code" id="preview-otp-code">------</div>
+          </div>
+        </div>
+        <div class="preview-actions">
+          <button id="confirm-add" class="btn btn-primary btn-block">
+            <i class="fas fa-check"></i> <span data-i18n="confirmAdd">Add Account</span>
+          </button>
+          <button id="cancel-add" class="btn btn-secondary btn-block">
+            <i class="fas fa-times"></i> <span data-i18n="cancel">Cancel</span>
+          </button>
+        </div>
+        <div id="preview-error" class="error-message hidden"></div>
+      </div>
+    </div>
+
+    <!-- Settings Screen -->
+    <div id="settings-screen" class="screen hidden">
+      <div class="settings-container">
+        <div class="header-bar">
+          <button id="back-from-settings" class="btn-icon">
+            <i class="fas fa-arrow-left"></i>
+          </button>
+          <h2 data-i18n="settings">Settings</h2>
+          <div class="spacer"></div>
+        </div>
+        <div class="settings-content">
+          <div class="form-group">
+            <label for="settings-language" data-i18n="language">Language</label>
+            <select id="settings-language">
+              <option value="en">English</option>
+              <option value="zh">中文</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="settings-theme" data-i18n="theme">Theme</label>
+            <select id="settings-theme">
+              <option value="system" data-i18n="systemTheme">System</option>
+              <option value="light" data-i18n="lightTheme">Light</option>
+              <option value="dark" data-i18n="darkTheme">Dark</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+      <span id="toast-message"></span>
+    </div>
+  </div>
+
+  <!-- Hidden file inputs -->
+  <input type="file" id="qr-file-input" accept="image/*" class="hidden-input">
+  <input type="file" id="import-file-input" accept=".json,.txt,.bin" class="hidden-input">
+
+  <script src="js/jsQR.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

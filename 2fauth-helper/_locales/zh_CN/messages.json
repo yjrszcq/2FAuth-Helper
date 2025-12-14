@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "2FAuth 身份验证器",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "2FAuth 浏览器插件 - 自托管一次性密码生成器",
+    "description": "Extension description"
+  }
+}

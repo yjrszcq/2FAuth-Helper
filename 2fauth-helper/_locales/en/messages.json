@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "2FAuth Authenticator",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Browser extension for 2FAuth - Self-hosted OTP generator",
+    "description": "Extension description"
+  }
+}

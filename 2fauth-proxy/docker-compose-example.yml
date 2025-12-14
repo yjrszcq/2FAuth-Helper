@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  2fauth-proxy:
+    build: .
+    container_name: 2fauth-proxy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # 2FAuth server URL (required)
+      - TWOFAUTH_URL=https://your-2fauth-server.com
+      # 2FAuth login credentials (required)
+      - TWOFAUTH_EMAIL=your-email@example.com
+      - TWOFAUTH_PASSWORD=your-password
+      # Proxy server port (optional, default: 3000)
+      - PROXY_PORT=3000
+      # Token storage file (optional)
+      - TOKEN_FILE=/app/data/token.json
+    volumes:
+      # Persist token data
+      - ./data:/app/data
