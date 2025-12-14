@@ -338,7 +338,6 @@ class TwoFAuthApp {
     const codeDisplay = document.getElementById('otp-code');
     const timerProgress = document.getElementById('timer-progress');
     const timerText = document.getElementById('timer-text');
-    const dotsContainer = document.getElementById('otp-dots');
 
     // Format OTP code with space in middle
     const code = otp.password || otp.otp || '------';
@@ -353,20 +352,10 @@ class TwoFAuthApp {
       const generatedAt = otp.generated_at || Math.floor(Date.now() / 1000);
       const remaining = period - (Math.floor(Date.now() / 1000) % period);
 
-      // Create dots for visual timer
-      dotsContainer.innerHTML = '';
-      for (let i = 0; i < period; i++) {
-        const dot = document.createElement('div');
-        dot.className = 'otp-dot';
-        if (i < remaining) dot.classList.add('active');
-        dotsContainer.appendChild(dot);
-      }
-
       this.startOtpTimer(period, remaining);
     } else if (otp.otp_type === 'hotp') {
       timerProgress.style.width = '100%';
       timerText.textContent = 'HOTP';
-      dotsContainer.innerHTML = '';
     }
   }
 
@@ -375,7 +364,6 @@ class TwoFAuthApp {
 
     const timerProgress = document.getElementById('timer-progress');
     const timerText = document.getElementById('timer-text');
-    const dotsContainer = document.getElementById('otp-dots');
 
     let currentRemaining = remaining;
 
@@ -383,16 +371,6 @@ class TwoFAuthApp {
       const progress = (currentRemaining / period) * 100;
       timerProgress.style.width = `${progress}%`;
       timerText.textContent = `${currentRemaining}s`;
-
-      // Update dots
-      const dots = dotsContainer.querySelectorAll('.otp-dot');
-      dots.forEach((dot, index) => {
-        if (index < currentRemaining) {
-          dot.classList.add('active');
-        } else {
-          dot.classList.remove('active');
-        }
-      });
 
       currentRemaining--;
 
