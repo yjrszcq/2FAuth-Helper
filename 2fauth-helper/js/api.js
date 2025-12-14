@@ -238,7 +238,16 @@ class TwoFAuthAPI {
       body: formData,
     });
 
-    const data = await response.json();
+    const contentType = response.headers.get('content-type');
+    let data;
+
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      // If response is not JSON, try to get text for error message
+      const text = await response.text();
+      data = { message: text || 'Failed to upload icon' };
+    }
 
     if (!response.ok) {
       throw {

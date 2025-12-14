@@ -27,6 +27,8 @@ This project contains two components:
 - View all 2FA accounts and OTP codes
 - Support for TOTP, HOTP, and Steam codes
 - Multiple ways to add accounts (scan QR, upload, manual entry, import)
+- Smart icon management (auto-fetch, auto-generate, custom upload)
+- QR code processing modes (Direct Submit / Manual Edit)
 - Import from Google Authenticator, Aegis, 2FAS, and more
 - Light/Dark theme support
 - Chinese/English interface

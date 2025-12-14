@@ -74,6 +74,7 @@ const i18n = {
       iconFetched: 'Icon fetched',
       noIconFound: 'No icon found for this service',
       failedFetchIcon: 'Failed to fetch icon',
+      usingDefault: 'using default icon',
 
       // Import Screen
       importAccounts: 'Import Accounts',
@@ -121,6 +122,9 @@ const i18n = {
       systemTheme: 'System',
       lightTheme: 'Light',
       darkTheme: 'Dark',
+      qrProcessMode: 'QR Code Processing',
+      qrModeDirect: 'Submit Directly',
+      qrModeManual: 'Edit Manually',
     },
 
     zh: {
@@ -194,6 +198,7 @@ const i18n = {
       iconFetched: '图标已获取',
       noIconFound: '未找到该服务的图标',
       failedFetchIcon: '获取图标失败',
+      usingDefault: '使用默认图标',
 
       // Import Screen
       importAccounts: '导入账户',
@@ -241,6 +246,9 @@ const i18n = {
       systemTheme: '跟随系统',
       lightTheme: '浅色',
       darkTheme: '深色',
+      qrProcessMode: '二维码处理方式',
+      qrModeDirect: '直接提交',
+      qrModeManual: '手动编辑',
     },
   },
 

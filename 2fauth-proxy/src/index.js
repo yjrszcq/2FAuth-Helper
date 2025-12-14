@@ -284,6 +284,59 @@ app.post('/api/v1/icons/default', authMiddleware, async (req, res) => {
   }
 });
 
+// Upload icon
+app.post('/api/v1/icons', authMiddleware, upload.single('icon'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    logger.info('Uploading icon');
+
+    const FormData = require('form-data');
+    const formData = new FormData();
+    formData.append('icon', req.file.buffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
+    });
+
+    const fetchModule = require('node-fetch');
+    const fetchCookie = require('fetch-cookie');
+
+    const loginResult = await twofauthClient.ensureLoggedIn();
+    if (!loginResult.success) {
+      return handleProxyError(
+        { loginFailed: true, loginError: loginResult.error },
+        res,
+        'uploading icon'
+      );
+    }
+    await twofauthClient.refreshCsrf();
+
+    const jar = twofauthClient.cookieJar;
+    const fetchWithCookies = fetchCookie(fetchModule, jar);
+
+    const response = await fetchWithCookies(`${config.twofauthUrl}/api/v1/icons`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'X-CSRF-TOKEN': twofauthClient.csrfToken,
+        'User-Agent': '2FAuth-Proxy/1.0',
+        ...formData.getHeaders(),
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      logger.info(`Uploaded icon: ${data.filename || 'unknown'}`);
+    }
+    res.status(response.status).json(data);
+  } catch (error) {
+    handleProxyError(error, res, 'uploading icon');
+  }
+});
+
 // Proxy icon files (supports token via query param for img tags)
 app.get('/storage/icons/:filename', async (req, res) => {
   // Support token via query param (for img src) or Authorization header

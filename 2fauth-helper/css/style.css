@@ -879,6 +879,10 @@ body {
   background: var(--danger-color);
 }
 
+.toast.info {
+  background: var(--primary-color);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

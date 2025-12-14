@@ -8,19 +8,23 @@ A browser extension for 2FAuth - view and manage your two-factor authentication 
 
 ## Features
 
-- View all 2FA accounts
-- Display OTP codes with auto-refresh
-- One-click copy to clipboard
-- Support for TOTP, HOTP, and Steam codes
-- Scan QR codes from screen
-- Upload QR code images
-- Manual entry for adding accounts
-- Import from other authenticator apps
-- Search accounts
-- Beautiful mobile-inspired interface
-- Light/Dark theme support
-- Chinese/English language switching
-- Icon configuration when adding accounts manually (auto-fetch or upload custom icon)
+- ✅ View all 2FA accounts
+- ✅ Display OTP codes with auto-refresh (TOTP, HOTP, Steam)
+- ✅ One-click copy to clipboard
+- ✅ Multiple ways to add accounts:
+  - Scan QR codes from screen
+  - Upload QR code images
+  - Manual entry with secret key
+  - Import from other authenticator apps
+- ✅ Smart icon management:
+  - Auto-fetch service icons (with timeout protection)
+  - Upload custom icons (PNG, JPG, GIF, SVG, etc.)
+  - Auto-generate colored first-letter icons
+- ✅ QR code processing modes (Direct Submit / Manual Edit)
+- ✅ Search and filter accounts
+- ✅ Beautiful mobile-inspired interface
+- ✅ Light/Dark theme support
+- ✅ Chinese/English language support
 
 ## Installation
 
@@ -93,11 +97,18 @@ The extension provides multiple ways to add accounts:
 
 1. Click "Manual Entry"
 2. Fill in service name, account, secret key, etc.
-3. Optionally configure an icon for the account:
-   - Click "Fetch Icon" to automatically get an icon based on the service name
-   - Click "Upload" to upload a custom icon
-   - Click the clear button to remove the icon
-4. Click "Add Account"
+3. Configure account icon (optional):
+   - **Auto-fetch**: Click "Fetch Icon" to automatically get an icon based on service name (3-second timeout)
+   - **Upload custom**: Click "Upload" to upload a custom icon file (supports PNG, JPG, GIF, SVG, etc.)
+   - **Auto-generate**: If no icon is set or fetch fails, a colored icon with the first letter of the service name will be automatically generated
+   - **Clear icon**: Click the ✕ button to clear the set icon
+4. Configure OTP parameters (optional):
+   - **OTP Type**: TOTP (Time-based) / HOTP (Counter-based) / Steam TOTP
+   - **Digits**: 6-10 digit codes
+   - **Algorithm**: SHA1 / SHA256 / SHA512 / MD5
+   - **Period** (TOTP): Code refresh interval, default 30 seconds
+   - **Counter** (HOTP): Initial counter value
+5. Click "Add Account"
 
 #### Import Accounts
 
@@ -116,13 +127,16 @@ Supports importing from:
 
 Type keywords in the search box at the top to quickly filter accounts.
 
-### Theme and Language Settings
+### Settings
 
 1. Click the settings button (gear icon) on the right side of the menu bar
-2. In the settings page, you can choose:
+2. In the settings page, you can configure:
    - **Language**: English / 中文
    - **Theme**: System / Light / Dark
-3. Settings are automatically saved
+   - **QR Code Processing**:
+     - **Submit Directly**: Preview and add account directly after scanning QR code
+     - **Edit Manually**: Auto-fill the manual entry form after scanning QR code, edit before adding
+3. Settings are automatically saved to browser cache
 
 ### Logout
 

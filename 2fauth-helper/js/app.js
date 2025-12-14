@@ -27,6 +27,9 @@ class TwoFAuthApp {
     // Apply saved language
     this.applyLanguage(data.language || 'en');
 
+    // Load QR mode setting (default to manual)
+    this.qrMode = data.qrMode || 'manual';
+
     if (data.serverUrl) {
       api.setBaseUrl(data.serverUrl);
     }
@@ -58,10 +61,16 @@ class TwoFAuthApp {
     await this.saveStorage({ theme });
   }
 
+  async setQrMode(mode) {
+    this.qrMode = mode;
+    await this.saveStorage({ qrMode: mode });
+  }
+
   showSettingsScreen() {
     // Update dropdowns to current values
     document.getElementById('settings-language').value = i18n.currentLang;
     document.getElementById('settings-theme').value = this.themeSetting || 'system';
+    document.getElementById('settings-qr-mode').value = this.qrMode || 'manual';
     this.showScreen('settings');
   }
 
@@ -91,7 +100,7 @@ class TwoFAuthApp {
 
   async loadStorage() {
     return new Promise((resolve) => {
-      chrome.storage.local.get(['serverUrl', 'token', 'user', 'theme', 'language'], (result) => {
+      chrome.storage.local.get(['serverUrl', 'token', 'user', 'theme', 'language', 'qrMode'], (result) => {
         resolve(result || {});
       });
     });
@@ -442,7 +451,14 @@ class TwoFAuthApp {
   async handleQrData(data) {
     // Check for otpauth URI
     if (data.toLowerCase().startsWith('otpauth://')) {
-      await this.showPreview(data);
+      // Check qrMode setting
+      if (this.qrMode === 'manual') {
+        // Parse URI and fill manual form
+        await this.parseUriAndFillForm(data);
+      } else {
+        // Direct mode: show preview
+        await this.showPreview(data);
+      }
     }
     // Check for Google Authenticator migration URI
     else if (data.toLowerCase().startsWith('otpauth-migration://')) {
@@ -575,23 +591,49 @@ class TwoFAuthApp {
     }
 
     try {
-      this.showToast(i18n.t('fetchingIcon'), 'info');
-      const result = await api.getDefaultIcon(serviceName.trim());
+      // Show loading spinner in icon preview
+      const preview = document.getElementById('manual-icon-preview');
+      preview.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+      // Create timeout promise (3 seconds)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('timeout')), 3000);
+      });
+
+      // Race between API call and timeout
+      const result = await Promise.race([
+        api.getDefaultIcon(serviceName.trim()),
+        timeoutPromise
+      ]);
 
       if (result && result.filename) {
         this.manualIconFilename = result.filename;
         this.manualIconFile = null;
         this.updateIconPreview(result.filename);
-        this.showToast(i18n.t('iconFetched'), 'success');
       } else {
-        this.showToast(i18n.t('noIconFound'), 'error');
+        // No icon found, use default
+        await this.useDefaultIcon(serviceName.trim());
       }
     } catch (error) {
-      if (error.status === 404) {
-        this.showToast(i18n.t('noIconFound'), 'error');
-      } else {
-        this.showToast(i18n.t('failedFetchIcon'), 'error');
-      }
+      // Timeout or error: use default icon
+      await this.useDefaultIcon(serviceName.trim());
+    }
+  }
+
+  async useDefaultIcon(serviceName) {
+    // Set a special marker for default icon
+    this.manualIconFile = null;
+    this.manualIconFilename = 'default';
+
+    // Generate preview of first-letter icon
+    const preview = document.getElementById('manual-icon-preview');
+    try {
+      const iconFile = await this.generateDefaultIconFile(serviceName);
+      const dataUrl = await this.fileToDataUrl(iconFile);
+      preview.innerHTML = `<img src="${dataUrl}" alt="Default Icon">`;
+    } catch (error) {
+      // Fallback to key icon if generation fails
+      preview.innerHTML = '<i class="fas fa-key"></i>';
     }
   }
 
@@ -604,7 +646,6 @@ class TwoFAuthApp {
       // Show preview
       const preview = document.getElementById('manual-icon-preview');
       preview.innerHTML = `<img src="${dataUrl}" alt="Icon">`;
-      this.showToast(i18n.t('iconFetched'), 'success');
     } catch (error) {
       this.showToast(i18n.t('failedFetchIcon'), 'error');
     }
@@ -624,6 +665,47 @@ class TwoFAuthApp {
     preview.innerHTML = `<img src="${iconUrl}" alt="Icon" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-key\\'></i>'">`;
   }
 
+  generateDefaultIconFile(serviceName) {
+    // Create a canvas to generate a default icon with first letter
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    // Generate a color based on service name
+    let hash = 0;
+    const name = serviceName || 'Default';
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = hash % 360;
+
+    // Draw a colored circle background
+    ctx.fillStyle = `hsl(${hue}, 65%, 55%)`;
+    ctx.beginPath();
+    ctx.arc(64, 64, 64, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw the first character in white (works for both English and Chinese)
+    const firstChar = (serviceName || '?').charAt(0);
+    // Only uppercase for ASCII letters
+    const displayChar = /^[a-zA-Z]$/.test(firstChar) ? firstChar.toUpperCase() : firstChar;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 72px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(displayChar, 64, 64);
+
+    // Convert canvas to blob
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        const file = new File([blob], 'default-icon.png', { type: 'image/png' });
+        resolve(file);
+      }, 'image/png');
+    });
+  }
+
   resetManualForm() {
     document.getElementById('manual-form').reset();
     this.clearIcon();
@@ -631,6 +713,72 @@ class TwoFAuthApp {
     // Reset OTP type specific options visibility
     document.querySelector('.totp-options').classList.remove('hidden');
     document.querySelector('.hotp-options').classList.add('hidden');
+  }
+
+  async parseUriAndFillForm(uri) {
+    try {
+      // Parse otpauth:// URI
+      const url = new URL(uri);
+      const type = url.hostname; // totp or hotp
+      const path = url.pathname.substring(1); // Remove leading /
+
+      // Parse label (service:account or just account)
+      let service = '';
+      let account = '';
+      if (path.includes(':')) {
+        const parts = path.split(':');
+        service = decodeURIComponent(parts[0]);
+        account = decodeURIComponent(parts[1] || '');
+      } else {
+        account = decodeURIComponent(path);
+      }
+
+      // Get URL parameters
+      const params = url.searchParams;
+      const secret = params.get('secret') || '';
+      const issuer = params.get('issuer');
+      const algorithm = params.get('algorithm') || 'SHA1';
+      const digits = params.get('digits') || '6';
+      const period = params.get('period') || '30';
+      const counter = params.get('counter') || '0';
+
+      // Use issuer if service is empty
+      if (!service && issuer) {
+        service = issuer;
+      }
+
+      // Fill the form
+      document.getElementById('manual-service').value = service;
+      document.getElementById('manual-account').value = account;
+      document.getElementById('manual-secret').value = secret;
+      document.getElementById('manual-digits').value = digits;
+      document.getElementById('manual-algorithm').value = algorithm.toUpperCase();
+      document.getElementById('manual-period').value = period;
+      document.getElementById('manual-counter').value = counter;
+
+      // Set OTP type
+      const otpTypeSelect = document.getElementById('manual-otp-type');
+      if (type === 'hotp') {
+        otpTypeSelect.value = 'hotp';
+        document.querySelector('.totp-options').classList.add('hidden');
+        document.querySelector('.hotp-options').classList.remove('hidden');
+      } else {
+        otpTypeSelect.value = 'totp';
+        document.querySelector('.totp-options').classList.remove('hidden');
+        document.querySelector('.hotp-options').classList.add('hidden');
+      }
+
+      // Show manual entry screen
+      this.showScreen('manual');
+
+      // Auto-fetch icon if service name exists
+      if (service) {
+        await this.fetchIconByService(service);
+      }
+    } catch (error) {
+      console.error('Failed to parse URI:', error);
+      this.showToast(i18n.t('invalidQrFormat'), 'error');
+    }
   }
 
   async addManualAccount(formData) {
@@ -650,16 +798,29 @@ class TwoFAuthApp {
         accountData.counter = parseInt(formData.counter);
       }
 
-      // Handle icon
-      if (this.manualIconFile) {
-        // Upload custom icon first
-        const uploadResult = await api.uploadIcon(this.manualIconFile);
-        if (uploadResult && uploadResult.filename) {
-          accountData.icon = uploadResult.filename;
+      // Handle icon - wrap in try-catch to prevent icon upload failure from blocking account creation
+      try {
+        if (this.manualIconFile) {
+          // User uploaded icon: upload and use it
+          const uploadResult = await api.uploadIcon(this.manualIconFile);
+          if (uploadResult && uploadResult.filename) {
+            accountData.icon = uploadResult.filename;
+          }
+        } else if (this.manualIconFilename && this.manualIconFilename !== 'default') {
+          // Successfully fetched icon: use it directly
+          accountData.icon = this.manualIconFilename;
+        } else if (this.manualIconFilename === 'default' || !this.manualIconFilename) {
+          // Using default marker or no icon set: generate first-letter icon and upload
+          const defaultIconFile = await this.generateDefaultIconFile(formData.service);
+          const uploadResult = await api.uploadIcon(defaultIconFile);
+          if (uploadResult && uploadResult.filename) {
+            accountData.icon = uploadResult.filename;
+          }
         }
-      } else if (this.manualIconFilename) {
-        // Use fetched icon filename
-        accountData.icon = this.manualIconFilename;
+      } catch (iconError) {
+        // Icon upload failed, but continue without icon
+        console.warn('Icon upload failed:', iconError);
+        // accountData.icon will remain undefined, 2FAuth will use default behavior
       }
 
       await api.createAccount(accountData);
@@ -1064,6 +1225,10 @@ class TwoFAuthApp {
 
     document.getElementById('settings-theme').addEventListener('change', (e) => {
       this.setTheme(e.target.value);
+    });
+
+    document.getElementById('settings-qr-mode').addEventListener('change', (e) => {
+      this.setQrMode(e.target.value);
     });
   }
 }

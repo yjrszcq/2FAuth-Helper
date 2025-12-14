@@ -122,6 +122,7 @@ docker-compose restart
 
 The proxy exposes the same API endpoints as 2FAuth:
 
+- `GET /health` - Health check (no auth required)
 - `GET /api/v1/user` - Get user info
 - `GET /api/v1/twofaccounts` - List all accounts
 - `GET /api/v1/twofaccounts/:id` - Get account details
@@ -132,6 +133,8 @@ The proxy exposes the same API endpoints as 2FAuth:
 - `POST /api/v1/twofaccounts/migration` - Import accounts
 - `POST /api/v1/qrcode/decode` - Decode QR code image
 - `GET /api/v1/groups` - List groups
+- `POST /api/v1/icons/default` - Get default icon
+- `POST /api/v1/icons` - Upload custom icon
 - `GET /storage/icons/:filename` - Get account icon
 
 All endpoints (except `/health`) require the `Authorization: Bearer <token>` header.

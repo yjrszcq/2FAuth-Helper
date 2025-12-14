@@ -13,6 +13,7 @@ ___
 - Session 失效时自动重新登录
 - 使用独立的代理 Token 进行身份验证
 - Token 持久化存储，容器重启后仍然有效
+- 支持图标上传和管理
 - 支持 Docker 部署
 
 ## 快速开始
@@ -95,6 +96,7 @@ docker exec 2fauth-proxy npm run generate-token
 | `/api/v1/qrcode/decode` | POST | 解码二维码 |
 | `/api/v1/groups` | GET | 获取分组列表 |
 | `/api/v1/icons/default` | POST | 获取默认图标 |
+| `/api/v1/icons` | POST | 上传自定义图标 |
 | `/storage/icons/:filename` | GET | 获取图标文件 |
 
 所有 API 端点（除 `/health` 外）都需要在请求头中携带 Token：
