@@ -130,28 +130,52 @@ class TwoFAuthApp {
       return;
     }
 
-    // Try to validate token
-    try {
-      const user = await api.getUser();
-      await this.saveStorage({ user });
-      this.showMainScreen(user);
-    } catch (error) {
-      if (error.status === 401) {
-        // Token expired
-        await this.saveStorage({ token: null, user: null });
-        this.showScreen('login');
-        this.updateServerDisplay(data.serverUrl);
-      } else if (error.code === 'TWOFAUTH_AUTH_FAILED') {
-        // Proxy cannot authenticate with 2FAuth server
-        this.showScreen('login');
-        this.updateServerDisplay(data.serverUrl);
-        this.showToast(`${i18n.t('twofauthFailed')}: ${error.message || 'Authentication error'}`, 'error');
-      } else {
-        // Server error or network issue
-        this.showScreen('login');
-        this.updateServerDisplay(data.serverUrl);
-        this.showToast(i18n.t('cannotConnectServer'), 'error');
+    // Try to validate token with retry
+    const maxRetries = 2;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const user = await api.getUser();
+        await this.saveStorage({ user });
+        this.showMainScreen(user);
+        return; // Success, exit
+      } catch (error) {
+        // Don't retry for authentication errors
+        if (error.status === 401) {
+          // Token expired
+          await this.saveStorage({ token: null, user: null });
+          this.showScreen('login');
+          this.updateServerDisplay(data.serverUrl);
+          return;
+        }
+
+        if (error.code === 'TWOFAUTH_AUTH_FAILED') {
+          // Proxy cannot authenticate with 2FAuth server
+          this.showScreen('login');
+          this.updateServerDisplay(data.serverUrl);
+          this.showToast(`${i18n.t('twofauthFailed')}: ${error.message || 'Authentication error'}`, 'error');
+          return;
+        }
+
+        // For network errors or server issues, retry
+        if (attempt < maxRetries) {
+          // Wait before retry (exponential backoff: 500ms, 1000ms)
+          await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+          continue;
+        }
       }
+    }
+
+    // All retries failed
+    // If we have cached user data, show main screen with a warning
+    if (data.user) {
+      this.showMainScreen(data.user);
+      this.showToast(i18n.t('connectionWarning') || 'Network issue, using cached data', 'warning', 3000);
+    } else {
+      // No cached data, show login screen
+      this.showScreen('login');
+      this.updateServerDisplay(data.serverUrl);
+      this.showToast(i18n.t('cannotConnectServer'), 'error');
     }
   }
 

@@ -114,6 +114,7 @@ const i18n = {
       failedPreview: 'Failed to preview account',
       networkError: 'Network error',
       cannotConnectServer: 'Cannot connect to server',
+      connectionWarning: 'Network issue, using cached data',
 
       // Settings
       settings: 'Settings',
@@ -238,6 +239,7 @@ const i18n = {
       failedPreview: '预览账户失败',
       networkError: '网络错误',
       cannotConnectServer: '无法连接到服务器',
+      connectionWarning: '网络问题，使用缓存数据',
 
       // Settings
       settings: '设置',
