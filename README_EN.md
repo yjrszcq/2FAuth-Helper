@@ -6,6 +6,8 @@ ___
 
 A browser extension solution for [2FAuth](https://github.com/Bubka/2FAuth) - view and manage your two-factor authentication codes conveniently in your browser.
 
+> The current version uses the API of 2FAuth v5.6.1.
+
 ## Architecture
 
 ```
