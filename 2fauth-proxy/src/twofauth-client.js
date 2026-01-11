@@ -131,14 +131,14 @@ class TwoFAuthClient {
     }
   }
 
-  async getWithExistingSession(path, accept = 'application/json') {
+  async getWithExistingSession(path, headers = { Accept: 'application/json' }) {
     const url = `${this.baseUrl}${path}`;
-    const headers = {
-      Accept: accept,
+    const requestHeaders = {
       'User-Agent': '2FAuth-Proxy/1.0',
+      ...headers,
     };
 
-    return this.fetchWithCookies(url, { method: 'GET', headers });
+    return this.fetchWithCookies(url, { method: 'GET', headers: requestHeaders });
   }
 
   async proxyRequest(method, path, body = null, contentType = 'application/json') {

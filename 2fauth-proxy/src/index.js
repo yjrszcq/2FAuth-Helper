@@ -364,10 +364,18 @@ app.get('/storage/icons/:filename', async (req, res) => {
   }
 
   try {
+    const passthroughHeaders = { Accept: 'image/*' };
+    if (req.headers['if-none-match']) {
+      passthroughHeaders['If-None-Match'] = req.headers['if-none-match'];
+    }
+    if (req.headers['if-modified-since']) {
+      passthroughHeaders['If-Modified-Since'] = req.headers['if-modified-since'];
+    }
+
     // Do not trigger a login for icons; serve with existing session only
     const response = await twofauthClient.getWithExistingSession(
       `/storage/icons/${req.params.filename}`,
-      'image/*'
+      passthroughHeaders
     );
 
     if (response.status === 401 || response.status === 419) {
@@ -378,11 +386,32 @@ app.get('/storage/icons/:filename', async (req, res) => {
       return res.status(response.status).send('Icon not found');
     }
 
-    const buffer = await response.buffer();
+    const cacheControl = response.headers.get('cache-control');
+    const etag = response.headers.get('etag');
+    const lastModified = response.headers.get('last-modified');
     const contentType = response.headers.get('content-type') || 'image/png';
 
+    if (cacheControl) {
+      res.set('Cache-Control', cacheControl);
+    } else {
+      res.set('Cache-Control', 'public, max-age=86400');
+    }
+    if (etag) res.set('ETag', etag);
+    if (lastModified) res.set('Last-Modified', lastModified);
     res.set('Content-Type', contentType);
-    res.send(buffer);
+
+    res.status(response.status);
+
+    if (response.status === 304) {
+      return res.end();
+    }
+
+    if (response.body) {
+      response.body.pipe(res);
+    } else {
+      const buffer = await response.buffer();
+      res.send(buffer);
+    }
   } catch (error) {
     handleProxyError(error, res, 'fetching icon');
   }

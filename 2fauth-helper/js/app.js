@@ -10,6 +10,9 @@ class TwoFAuthApp {
     this.previewData = null;
     this.manualIconFile = null;
     this.manualIconFilename = null;
+    this.iconQueue = [];
+    this.iconLoading = 0;
+    this.maxIconConcurrency = 3;
 
     this.init();
   }
@@ -197,6 +200,13 @@ class TwoFAuthApp {
     if (screenName !== 'otp') {
       this.stopOtpTimer();
     }
+
+    if (screenName === 'main') {
+      const listContainer = document.getElementById('account-list');
+      if (listContainer) {
+        this.prepareListIcons(listContainer);
+      }
+    }
   }
 
   updateServerDisplay(url) {
@@ -267,7 +277,7 @@ class TwoFAuthApp {
       .map(
         (account) => `
       <div class="account-item" data-id="${account.id}">
-        <div class="account-icon">
+        <div class="account-icon" data-icon-name="${account.icon || ''}" data-service="${encodeURIComponent(account.service || '')}">
           ${this.getAccountIcon(account)}
         </div>
         <div class="account-info">
@@ -289,13 +299,15 @@ class TwoFAuthApp {
         this.showOtpScreen(id);
       });
     });
+
+    // Queue icon loading with limited concurrency to avoid blocking OTP fetches
+    this.prepareListIcons(listContainer);
   }
 
   getAccountIcon(account) {
     if (account.icon) {
-      // Use token in query param for img src (can't set Authorization header on img tags)
-      const iconUrl = `${api.baseUrl}/storage/icons/${account.icon}?token=${api.token}`;
-      return `<img src="${iconUrl}" alt="${this.escapeHtml(account.service)}" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-key\\'></i>'">`;
+      const serviceAttr = encodeURIComponent(account.service || '');
+      return `<i class="fas fa-spinner fa-spin" data-icon-name="${account.icon}" data-service="${serviceAttr}"></i>`;
     }
     return '<i class="fas fa-key"></i>';
   }
@@ -314,11 +326,12 @@ class TwoFAuthApp {
 
     const iconContainer = document.getElementById('otp-icon');
     iconContainer.innerHTML = '<i class="fas fa-key"></i>';
+    const listIconContainer = document.querySelector(`.account-item[data-id="${accountId}"] .account-icon`);
 
     // Kick off OTP fetch immediately
     const otpPromise = this.refreshOtp();
 
-    const listIcon = document.querySelector(`.account-item[data-id="${accountId}"] .account-icon img`);
+    const listIcon = listIconContainer ? listIconContainer.querySelector('img') : null;
     if (listIcon) {
       const cloned = listIcon.cloneNode(true);
       cloned.onerror = () => {
@@ -327,7 +340,7 @@ class TwoFAuthApp {
       iconContainer.innerHTML = '';
       iconContainer.appendChild(cloned);
     } else {
-      this.loadIcon(account.icon, account.service, iconContainer);
+      this.loadIcon(account.icon, account.service, iconContainer, listIconContainer);
     }
   }
 
@@ -346,41 +359,84 @@ class TwoFAuthApp {
     }
   }
 
-  async loadIcon(iconName, serviceName, container) {
+  prepareListIcons(listContainer) {
+    this.iconQueue = [];
+
+    const iconContainers = listContainer.querySelectorAll('.account-icon');
+    iconContainers.forEach((container) => {
+      if (container.querySelector('img')) return;
+      if (container.dataset.loading === '1') return;
+
+      const iconName = container.dataset.iconName;
+      let serviceName = '';
+      try {
+        serviceName = decodeURIComponent(container.dataset.service || '');
+      } catch {
+        serviceName = '';
+      }
+      if (container && iconName) {
+        this.enqueueIconLoad(container, iconName, serviceName);
+        container.dataset.loading = '1';
+      }
+    });
+
+    this.processIconQueue();
+  }
+
+  enqueueIconLoad(container, iconName, serviceName) {
+    this.iconQueue.push({ container, iconName, serviceName });
+  }
+
+  processIconQueue() {
+    while (this.iconLoading < this.maxIconConcurrency && this.iconQueue.length > 0) {
+      const next = this.iconQueue.shift();
+      if (!next) return;
+
+      this.iconLoading++;
+      this.loadIcon(next.iconName, next.serviceName, next.container).finally(() => {
+        this.iconLoading = Math.max(0, this.iconLoading - 1);
+        this.processIconQueue();
+      });
+    }
+  }
+
+  async loadIcon(iconName, serviceName, container, mirrorContainer = null) {
     if (!container) return;
 
     if (!iconName) {
       container.innerHTML = '<i class="fas fa-key"></i>';
+      if (mirrorContainer) mirrorContainer.innerHTML = '<i class="fas fa-key"></i>';
+      container.dataset.loading = '0';
       return;
     }
 
     container.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    if (mirrorContainer && !mirrorContainer.querySelector('img')) {
+      mirrorContainer.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    }
 
-    try {
-      const iconUrl = `${api.baseUrl}/storage/icons/${iconName}?token=${api.token}`;
-      const response = await fetch(iconUrl, {
-        headers: { Accept: 'image/*' },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Icon fetch failed with status ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
+    const iconUrl = `${api.baseUrl}/storage/icons/${iconName}?token=${api.token}`;
+    return new Promise((resolve) => {
       const img = document.createElement('img');
-      img.src = objectUrl;
+      img.src = iconUrl;
       img.alt = serviceName || 'icon';
-      img.onload = () => URL.revokeObjectURL(objectUrl);
+      img.onload = () => {
+        container.innerHTML = '';
+        container.appendChild(img.cloneNode(true));
+        if (mirrorContainer) {
+          mirrorContainer.innerHTML = '';
+          mirrorContainer.appendChild(img.cloneNode(true));
+        }
+        container.dataset.loading = '0';
+        resolve(true);
+      };
       img.onerror = () => {
         container.innerHTML = '<i class="fas fa-key"></i>';
+        if (mirrorContainer) mirrorContainer.innerHTML = '<i class="fas fa-key"></i>';
+        container.dataset.loading = '0';
+        resolve(false);
       };
-
-      container.innerHTML = '';
-      container.appendChild(img);
-    } catch (error) {
-      container.innerHTML = '<i class="fas fa-key"></i>';
-    }
+    });
   }
 
   displayOtp(otp) {
