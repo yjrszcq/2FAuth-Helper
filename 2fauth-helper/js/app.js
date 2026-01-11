@@ -313,10 +313,22 @@ class TwoFAuthApp {
     document.getElementById('otp-account').textContent = account.account || '';
 
     const iconContainer = document.getElementById('otp-icon');
-    iconContainer.innerHTML = this.getAccountIcon(account);
+    iconContainer.innerHTML = '<i class="fas fa-key"></i>';
 
-    // Load OTP
-    await this.refreshOtp();
+    // Kick off OTP fetch immediately
+    const otpPromise = this.refreshOtp();
+
+    const listIcon = document.querySelector(`.account-item[data-id="${accountId}"] .account-icon img`);
+    if (listIcon) {
+      const cloned = listIcon.cloneNode(true);
+      cloned.onerror = () => {
+        iconContainer.innerHTML = '<i class="fas fa-key"></i>';
+      };
+      iconContainer.innerHTML = '';
+      iconContainer.appendChild(cloned);
+    } else {
+      this.loadIcon(account.icon, account.service, iconContainer);
+    }
   }
 
   async refreshOtp() {
@@ -331,6 +343,43 @@ class TwoFAuthApp {
       } else {
         this.showToast(i18n.t('failedGetOtp'), 'error');
       }
+    }
+  }
+
+  async loadIcon(iconName, serviceName, container) {
+    if (!container) return;
+
+    if (!iconName) {
+      container.innerHTML = '<i class="fas fa-key"></i>';
+      return;
+    }
+
+    container.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    try {
+      const iconUrl = `${api.baseUrl}/storage/icons/${iconName}?token=${api.token}`;
+      const response = await fetch(iconUrl, {
+        headers: { Accept: 'image/*' },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Icon fetch failed with status ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const img = document.createElement('img');
+      img.src = objectUrl;
+      img.alt = serviceName || 'icon';
+      img.onload = () => URL.revokeObjectURL(objectUrl);
+      img.onerror = () => {
+        container.innerHTML = '<i class="fas fa-key"></i>';
+      };
+
+      container.innerHTML = '';
+      container.appendChild(img);
+    } catch (error) {
+      container.innerHTML = '<i class="fas fa-key"></i>';
     }
   }
 
@@ -473,6 +522,8 @@ class TwoFAuthApp {
   async showPreview(uri) {
     this.previewUri = uri;
 
+    const otpPromise = api.getOtpByUri(uri);
+
     try {
       // Preview the account
       const preview = await api.previewAccount(uri);
@@ -485,22 +536,27 @@ class TwoFAuthApp {
       document.getElementById('preview-account').textContent = preview.account || '';
 
       const iconContainer = document.getElementById('preview-icon');
-      if (preview.icon) {
-        const iconUrl = `${api.baseUrl}/storage/icons/${preview.icon}`;
-        iconContainer.innerHTML = `<img src="${iconUrl}" alt="${this.escapeHtml(preview.service)}" onerror="this.innerHTML='<i class=\\'fas fa-key\\'></i>'">`;
-      } else {
-        iconContainer.innerHTML = '<i class="fas fa-key"></i>';
-      }
+      iconContainer.innerHTML = '<i class="fas fa-key"></i>';
+      this.loadIcon(preview.icon, preview.service, iconContainer);
 
       // Get preview OTP
-      const otp = await api.getOtpByUri(uri);
-      const code = otp.password || otp.otp || '------';
-      const formattedCode =
-        code.length > 3
-          ? code.slice(0, Math.ceil(code.length / 2)) + ' ' + code.slice(Math.ceil(code.length / 2))
-          : code;
-      document.getElementById('preview-otp-code').textContent = formattedCode;
+      try {
+        const otp = await otpPromise;
+        const code = otp.password || otp.otp || '------';
+        const formattedCode =
+          code.length > 3
+            ? code.slice(0, Math.ceil(code.length / 2)) + ' ' + code.slice(Math.ceil(code.length / 2))
+            : code;
+        document.getElementById('preview-otp-code').textContent = formattedCode;
+      } catch (otpError) {
+        if (otpError.code === 'TWOFAUTH_AUTH_FAILED') {
+          this.showToast(`${i18n.t('twofauthFailed')}: ${otpError.message || 'Authentication error'}`, 'error');
+        } else {
+          this.showToast(i18n.t('failedGetOtp'), 'error');
+        }
+      }
     } catch (error) {
+      await otpPromise.catch(() => {});
       if (error.code === 'TWOFAUTH_AUTH_FAILED') {
         this.showToast(`${i18n.t('twofauthFailed')}: ${error.message || 'Authentication error'}`, 'error');
       } else {

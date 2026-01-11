@@ -8,6 +8,7 @@ const logger = require('./logger');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
+let otpInFlight = 0;
 
 // Enable CORS for browser extension
 app.use(
@@ -107,12 +108,15 @@ app.get('/api/v1/twofaccounts/:id', authMiddleware, async (req, res) => {
 
 // Get OTP for account
 app.get('/api/v1/twofaccounts/:id/otp', authMiddleware, async (req, res) => {
+  otpInFlight++;
   try {
     const response = await twofauthClient.get(`/api/v1/twofaccounts/${req.params.id}/otp`);
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (error) {
     handleProxyError(error, res, 'fetching OTP');
+  } finally {
+    otpInFlight = Math.max(otpInFlight - 1, 0);
   }
 });
 
@@ -133,12 +137,15 @@ app.post('/api/v1/twofaccounts', authMiddleware, async (req, res) => {
 
 // Generate OTP from URI or params
 app.post('/api/v1/twofaccounts/otp', authMiddleware, async (req, res) => {
+  otpInFlight++;
   try {
     const response = await twofauthClient.post('/api/v1/twofaccounts/otp', JSON.stringify(req.body));
     const data = await response.json();
     res.status(response.status).json(data);
   } catch (error) {
     handleProxyError(error, res, 'generating OTP');
+  } finally {
+    otpInFlight = Math.max(otpInFlight - 1, 0);
   }
 });
 
@@ -339,6 +346,10 @@ app.post('/api/v1/icons', authMiddleware, upload.single('icon'), async (req, res
 
 // Proxy icon files (supports token via query param for img tags)
 app.get('/storage/icons/:filename', async (req, res) => {
+  if (otpInFlight > 0) {
+    return res.status(202).json({ error: 'OTP in progress, retry icon later' });
+  }
+
   // Support token via query param (for img src) or Authorization header
   const queryToken = req.query.token;
   const authHeader = req.headers.authorization;
@@ -353,7 +364,15 @@ app.get('/storage/icons/:filename', async (req, res) => {
   }
 
   try {
-    const response = await twofauthClient.get(`/storage/icons/${req.params.filename}`);
+    // Do not trigger a login for icons; serve with existing session only
+    const response = await twofauthClient.getWithExistingSession(
+      `/storage/icons/${req.params.filename}`,
+      'image/*'
+    );
+
+    if (response.status === 401 || response.status === 419) {
+      return res.status(202).json({ error: 'Icon not available yet' });
+    }
 
     if (!response.ok) {
       return res.status(response.status).send('Icon not found');

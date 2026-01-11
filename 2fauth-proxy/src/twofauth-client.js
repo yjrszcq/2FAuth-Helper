@@ -131,6 +131,16 @@ class TwoFAuthClient {
     }
   }
 
+  async getWithExistingSession(path, accept = 'application/json') {
+    const url = `${this.baseUrl}${path}`;
+    const headers = {
+      Accept: accept,
+      'User-Agent': '2FAuth-Proxy/1.0',
+    };
+
+    return this.fetchWithCookies(url, { method: 'GET', headers });
+  }
+
   async proxyRequest(method, path, body = null, contentType = 'application/json') {
     // Ensure we're logged in
     const loginResult = await this.ensureLoggedIn();
